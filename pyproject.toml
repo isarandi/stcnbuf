@@ -19,6 +19,7 @@ license = "MIT"
 
 dependencies = [
     'torch',
+    'torchvision',
     'numpy',
     'opencv-python',
     'numba',
