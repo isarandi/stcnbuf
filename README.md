@@ -1,4 +1,4 @@
-# Buffered STCN for Online Segmentation of Long Videos
+# Buffered STCN for Online and Offline Segmentation of Long Videos
 
 This is a fork of the STCN video object segmentation method. It is optimized for online prediction for long
 videos. That is, feeding a video stream to the network frame-by-frame and obtaining the predictions for each
