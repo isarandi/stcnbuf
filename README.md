@@ -10,23 +10,21 @@ Once the memory bank buffer reaches a specified number of frames, each new inser
 existing element in the buffer. This randomization results in an exponentially distributed sample, favoring
 recent time steps.
 
-## Usage Example
+For offline use, permuting the frames randomly and performing a burn-in pass (or several) achieves better segmentation quality. This way the memory will contain samples from the whole video sequence, which helps if the subject undergoes some appearance changes, such as lighting change, clothing change, distance or zoom, turning around, etc. The final pass can be done in order, keeping the previous few frames also in the memory in addition to the burn-in result.
 
-Check out the file `segment_3dpw.py` to see how this code can be used.
-To generate segmentation results for the annotated people in the 3DPW dataset, use:
+For initializing the segmentation, the intial timestamp can be provided; otherwise the middle frame is used. Mask-RCNN is run on this frame and then either the user can click the subjects to track using a GUI, or the highest-scoring detections are used.
 
-```bash
-DATA_ROOT=some_path # we assume that 3dpw is stored under $DATA_ROOT/3dpw
-python segment_3dpw.py --output-dir=$some_path --mem-every=3 --mem-size=128
-```
+----
 
-## Acknowledgments
+The code has been refactored in many other aspects as well, including removing einops usage in order to support TorchScript compilation.
+
+## References
+
+Original STCN:
 
 [Ho Kei Cheng](https://hkchengrex.github.io/), Yu-Wing Tai, Chi-Keung Tang. Rethinking Space-Time Networks with Improved Memory Coverage for Efficient Video Object Segmentation. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2021.
 
-Original repo: https://github.com/hkchengrex/STCN
-
-BibTeX:
+https://github.com/hkchengrex/STCN
 
 ```bibtex
 @inproceedings{cheng2021stcn,
