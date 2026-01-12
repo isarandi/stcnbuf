@@ -153,7 +153,7 @@ def process_video(init_segmenter, vos_model):
             for frame, label_map in zip(frame_batch, label_map_batch):
                 visu = myutils.plot_with_masks(frame, label_map)
                 if FLAGS.out_video_path:
-                    writer.append_data(visu)
+                    video_writer.append_data(visu)
                 if FLAGS.viz:
                     cv2.imshow('image', visu[..., ::-1])
                     cv2.waitKey(1)
