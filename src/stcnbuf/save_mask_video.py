@@ -1,13 +1,13 @@
 import argparse
-import itertools
 
 import cv2
+import framepump
 import numpy as np
 import rlemasklib
 import simplepyutils as spu
-import framepump
 from simplepyutils import FLAGS
-from stcnbuf import myutils
+
+from . import myutils
 
 
 def main():
@@ -31,15 +31,17 @@ def main():
             [rlemasklib.decode(encoded_mask) for encoded_mask in encoded_masks], axis=0
         )
         label_map = myutils.masks_to_label_map(masks)
-        frame = cv2.resize(
-            frame, (label_map.shape[1], label_map.shape[0]), interpolation=cv2.INTER_AREA
-        )
+        if label_map.shape[:2] != frame.shape[:2]:
+            label_map = cv2.resize(
+                label_map, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST
+            )
         visu = myutils.plot_with_masks(frame, label_map)
         if FLAGS.out_video_path:
             writer.append_data(visu)
 
-        cv2.imshow('image', visu[..., ::-1])
-        cv2.waitKey(1)
+        if FLAGS.viz:
+            cv2.imshow('image', visu[..., ::-1])
+            cv2.waitKey(1)
 
     if FLAGS.out_video_path:
         writer.close()

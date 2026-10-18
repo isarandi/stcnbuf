@@ -1,14 +1,10 @@
-"""
-modules.py - This file stores the rathering boring network blocks.
-"""
-
-import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from stcnbuf.model import cbam, mod_resnet
 from torchvision import models
 from torchvision.models import ResNet50_Weights
+
+from stcnbuf.model import cbam, mod_resnet
 
 
 class ResBlock(nn.Module):

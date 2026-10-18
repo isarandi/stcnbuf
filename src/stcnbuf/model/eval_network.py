@@ -1,8 +1,10 @@
-import numpy as np
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+
 from stcnbuf.inference_memory_bank import MemoryBank
 from stcnbuf.model.modules import KeyEncoder, KeyProjection, ResBlock, UpsampleBlock, ValueEncoder
 

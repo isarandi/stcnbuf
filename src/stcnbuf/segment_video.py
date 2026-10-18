@@ -1,24 +1,19 @@
-import os
-
-# https://github.com/pytorch/pytorch/issues/21956
-os.environ['OMP_NUM_THREADS'] = '1'
 import argparse
 import os.path as osp
 
 import cv2
+import framepump
 import matplotlib.pyplot as plt
 import more_itertools
 import numpy as np
 import rlemasklib
 import simplepyutils as spu
 import torch
-import torch.utils.data
-from simplepyutils import FLAGS
-import stcnbuf.morph
-from stcnbuf import mask_init, myutils
-from stcnbuf.model.eval_network import STCN, STCNInference
-import framepump
 import torchvision.transforms.v2.functional
+from simplepyutils import FLAGS
+
+from . import mask_init, morph, myutils
+from .model.eval_network import STCN, STCNInference
 
 
 def main():
@@ -81,7 +76,7 @@ def process_video(init_segmenter, vos_model):
     ms = initial_masks.cpu().numpy()
     maxval = np.max(ms, axis=0, keepdims=True)
     ms[ms != maxval] = 0
-    initial_masks = np.stack([stcnbuf.morph.process_mask_arr(m > 0.5) for m in ms], axis=0)
+    initial_masks = np.stack([morph.process_mask_arr(m > 0.5) for m in ms], axis=0)
 
     if FLAGS.gui_selection:
         indices = visualize_and_select_objects(initial_frame, initial_masks)
@@ -94,34 +89,26 @@ def process_video(init_segmenter, vos_model):
     n_objects = len(initial_masks)
     vos_model.initialize(initial_frame, initial_masks)
     vos_model_script = torch.jit.script(vos_model)
+
+    def make_batches(frames, total, desc):
+        return batched_frames(
+            spu.progressbar(frames, total=total, desc=desc),
+            vos_model.im_transform,
+            FLAGS.mem_every,
+        )
+
     desc1 = 'Segmenting' if FLAGS.passes == 1 else 'Burn-in'
-    ds = VideoDataset(
-        spu.progressbar(frames, total=n_frames * max(1, FLAGS.passes - 1), desc=desc1),
-        vos_model.im_transform,
-    )
-    frame_loader = torch.utils.data.DataLoader(
-        ds, num_workers=1, batch_size=FLAGS.mem_every, prefetch_factor=5
-    )
+    frame_batches = make_batches(frames, n_frames * max(1, FLAGS.passes - 1), desc1)
 
     if FLAGS.passes > 1:
         spu.logger.info(f'Running {FLAGS.passes - 1} burn-in passes...')
-        for frame_batch in frame_loader:
+        for frame_batch in frame_batches:
             vos_model_script.predict_batch(frame_batch.cuda())
 
-        # frames, index_unshuffler = get_frames_resized_already(
-        #    n_passes=1, resized_frames=resized_frames, permute_frames=False
-        # )
         frames, index_unshuffler = get_frames_resized_already(
             n_passes=1, resized_frames=resized_frames, permute_frames=False
         )
-        # frames_interleaved = more_itertools.interleave(frames, frames_perm)
-
-        ds = VideoDataset(
-            spu.progressbar(frames, total=n_frames, desc='Segmenting'), vos_model.im_transform
-        )
-        frame_loader = torch.utils.data.DataLoader(
-            ds, num_workers=1, batch_size=FLAGS.mem_every, prefetch_factor=5
-        )
+        frame_batches = make_batches(frames, n_frames, 'Segmenting')
 
     results = []
 
@@ -132,7 +119,7 @@ def process_video(init_segmenter, vos_model):
     )
 
     spu.logger.info('Running main pass...')
-    for i, frame_batch in enumerate(frame_loader):
+    for frame_batch in frame_batches:
         frame_batch: torch.Tensor
         mask_batch = vos_model_script.predict_batch(
             frame_batch.cuda(), add_last_to_memory=True, is_temp=FLAGS.passes > 1
@@ -159,7 +146,7 @@ def process_video(init_segmenter, vos_model):
                     cv2.waitKey(1)
 
     if FLAGS.morph_cleanup:
-        results = [[stcnbuf.morph.process_mask_dict(m) for m in ms] for ms in results]
+        results = [[morph.process_mask_dict(m) for m in ms] for ms in results]
 
     if FLAGS.permute_frames:
         spu.logger.info('Unpermuting...')
@@ -257,14 +244,9 @@ def get_frames_resized_already(n_passes=1, resized_frames=None, permute_frames=N
     return resized_frames, index_unshuffler
 
 
-class VideoDataset(torch.utils.data.IterableDataset):
-    def __init__(self, iterable, transform):
-        self.iterable = iterable
-        self.transform = transform
-
-    def __iter__(self):
-        for frame in self.iterable:
-            yield self.transform(frame)
+def batched_frames(frames, transform, batch_size):
+    for batch in more_itertools.chunked(frames, batch_size):
+        yield torch.stack([transform(f) for f in batch])
 
 
 def load_prop_model(model_path):
@@ -309,7 +291,7 @@ def visualize_and_select_objects(initial_frame, mask_stack):
             ax.plot(x, y, 'ro')
             plt.draw()
 
-    cid = fig.canvas.mpl_connect('button_press_event', on_click)
+    fig.canvas.mpl_connect('button_press_event', on_click)
     plt.title("Click once on each person to track, then close the window")
     plt.show()
 
